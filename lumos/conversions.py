@@ -18,7 +18,7 @@ def intensity_to_ab_mag(intensity, clip = True):
     """
     log_val = intensity * lumos.constants.WAVELENGTH / (lumos.constants.SPEED_OF_LIGHT * 3631e-26)
     if clip:
-        log_val = np.clip(log_val, 10e-6, None)
+        log_val = np.clip(log_val, 10e-10, None)
     ab_mag = -2.5 * np.log10( log_val )
     return ab_mag
 
