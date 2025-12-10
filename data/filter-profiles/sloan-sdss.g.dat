@@ -1,3 +1,10 @@
+# Dataset: sloan sdss g filter
+# Source: SVO Filter Profile Service – https://svo2.cab.inta-csic.es/svo/theory/fps/index.php?id=SLOAN/SDSS.g
+# Passband Summary: λ_eff=4671.78 Å, λ_pivot=4702.50 Å, FWHM=1175.63 Å, Zero point (Vega): 5.45e-9 (erg/cm2/s/A)
+# Columns: wavelength_Angstrom, transmission_fraction
+# Data begin below
+# wavelength_Angstrom, rho_percent
+
 3630.0 0.0000000000
 3655.0 0.0003000000
 3680.0 0.0008000000

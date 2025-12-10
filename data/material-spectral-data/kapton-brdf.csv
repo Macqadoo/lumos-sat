@@ -1,3 +1,17 @@
+# Dataset: Kapton – Bi-directional reflectance distribtuion function (BRDF)
+# Jacqueline A. Reyes, Karin W. Fulford, Elena A. Plis, Ryan C. Hoffmann, Vanessa J. Murray, Heather M. Cowardin, Darren Cone, Dale C. Ferguson, Miles T. Bengtson, Jainisha R. Shah, Daniel P. Engelhart,
+# Spectroscopic behavior of various materials in a GEO simulated environment,
+# Acta Astronautica,
+# Volume 189,
+# 2021,
+# Pages 576-583,
+# ISSN 0094-5765,
+# https://doi.org/10.1016/j.actaastro.2021.09.014.
+# Figure/Table: Fig. 9b/c.
+# Measurement Geometry: integrating-sphere setup, GEO-simulated environment
+# Notes: pre-weathered, surface finish unknown, obtained with webplot digitizer, measurements at 0 and 60 degrees
+# Columns: Theta_deg,AOI_deg,Pre_0deg,Pre_90deg
+
 Theta_deg,AOI_deg,Pre_0deg,Pre_90deg
 -90.0,60,5.540824602730885e-196,0.0
 -89.09547738693468,60,1.2400609246596702e-193,0.0

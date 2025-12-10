@@ -1,3 +1,18 @@
+# Dataset: Kapton – Diffuse Hemispherical Reflectance (DHR)
+# Source: 
+# Jacqueline A. Reyes, Karin W. Fulford, Elena A. Plis, Ryan C. Hoffmann, Vanessa J. Murray, Heather M. Cowardin, Darren Cone, Dale C. Ferguson, Miles T. Bengtson, Jainisha R. Shah, Daniel P. Engelhart,
+# Spectroscopic behavior of various materials in a GEO simulated environment,
+# Acta Astronautica,
+# Volume 189,
+# 2021,
+# Pages 576-583,
+# ISSN 0094-5765,
+# https://doi.org/10.1016/j.actaastro.2021.09.014.
+# Figure/Table: Fig. 9a.
+# Measurement Geometry: integrating-sphere setup, GEO-simulated environment
+# Notes: pre-weathered, surface finish unknown, obtained with webplot digitizer
+# Columns: wavelength_nm, DHR %
+
 350.8417508417507, 34.34869739478958
 359.2592592592591, 38.49699398797594
 364.3097643097642, 35.430861723446895
