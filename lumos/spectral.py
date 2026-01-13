@@ -256,7 +256,10 @@ def diffuse_spectral_energy_function(
         try:
             vals = base_brdf(i_vec, n_vec, o_vec, lam=lam_eff, **kwargs)
         except TypeError:
-            vals = base_brdf(i_vec, n_vec, o_vec, lam_eff, **kwargs)
+            try:
+                vals = base_brdf(i_vec, n_vec, o_vec, lam_eff, **kwargs)
+            except TypeError:
+                vals = base_brdf(i_vec, n_vec, o_vec, **kwargs)
 
         return scale * vals
 
