@@ -7,6 +7,8 @@ import lumos.constants
 import lumos.conversions
 import lumos.geometry
 import astropy.coordinates
+import lumos.attitude
+
 
 def get_earthshine_panels(sat_z, angle_past_terminator, density):
     """
@@ -19,7 +21,7 @@ def get_earthshine_panels(sat_z, angle_past_terminator, density):
     :type angle_past_terminator: float
     :param density: The density of the pixels. Grid will have size density x density.
     :type density: int
-    :returns: 
+    :returns:
         - (x, y, z) - Positions of pixels (meters)
         - (nx, ny, nz) - Normal vectors of pixels
         - areas - Areas of pixels (:math:`m^2`)
@@ -32,20 +34,26 @@ def get_earthshine_panels(sat_z, angle_past_terminator, density):
     angles_off_plane = np.linspace(-max_angle, max_angle, density)
     angles_on_plane = np.linspace(angle_past_terminator, max_angle, density)
 
-    d_phi = abs( angles_off_plane[1] - angles_off_plane[0] )
-    d_theta = abs( angles_on_plane[1] - angles_on_plane[0] )
+    d_phi = abs(angles_off_plane[1] - angles_off_plane[0])
+    d_theta = abs(angles_on_plane[1] - angles_on_plane[0])
 
     angles_on_plane, angles_off_plane = np.meshgrid(angles_on_plane, angles_off_plane)
-    angles_on_plane, angles_off_plane = angles_on_plane.flatten(), angles_off_plane.flatten()
+    angles_on_plane, angles_off_plane = (
+        angles_on_plane.flatten(),
+        angles_off_plane.flatten(),
+    )
 
     # Set up panel positions
-    nz = 1 / np.sqrt( 1 + np.tan(angles_on_plane)**2 + np.tan(angles_off_plane)**2 )
+    nz = 1 / np.sqrt(1 + np.tan(angles_on_plane) ** 2 + np.tan(angles_off_plane) ** 2)
     nx = np.tan(angles_off_plane) * nz
     ny = np.tan(angles_on_plane) * nz
 
     # Clip the panels which aren't visible to the satellite
     visible_to_sat = np.arccos(nz) < max_angle
-    angles_off_plane, angles_on_plane = angles_off_plane[visible_to_sat], angles_on_plane[visible_to_sat]
+    angles_off_plane, angles_on_plane = (
+        angles_off_plane[visible_to_sat],
+        angles_on_plane[visible_to_sat],
+    )
     nx, ny, nz = nx[visible_to_sat], ny[visible_to_sat], nz[visible_to_sat]
 
     # Calculate Jacobian determinant to get panel areas
@@ -53,38 +61,42 @@ def get_earthshine_panels(sat_z, angle_past_terminator, density):
 
     phi = angles_off_plane
     theta = angles_on_plane
-        
+
     dx_dr = nx / nz * z / R
-    dx_dphi = z**3 / (R**2 * np.cos(phi)**2 * np.cos(theta)**2)
-    dx_dtheta = - (ny / nz * nx / nz* z**3 ) / (R**2 * np.cos(theta)**2 )
-    
+    dx_dphi = z**3 / (R**2 * np.cos(phi) ** 2 * np.cos(theta) ** 2)
+    dx_dtheta = -(ny / nz * nx / nz * z**3) / (R**2 * np.cos(theta) ** 2)
+
     dy_dr = np.tan(theta) * z / R
-    dy_dphi = - ( ny / nz * nx / nz * z**3 ) / (R**2 * np.cos(phi)**2 )
+    dy_dphi = -(ny / nz * nx / nz * z**3) / (R**2 * np.cos(phi) ** 2)
     dy_dtheta = dx_dphi
-    
+
     dz_dr = z / R
-    dz_dphi = - (nx / nz * z**3 ) / (R**2 * np.cos(phi)**2)
-    dz_dtheta = - (ny / nz * z**3 ) / (R**2 * np.cos(theta)**2)
+    dz_dphi = -(nx / nz * z**3) / (R**2 * np.cos(phi) ** 2)
+    dz_dtheta = -(ny / nz * z**3) / (R**2 * np.cos(theta) ** 2)
 
     determinant = (
-        dx_dr * (dy_dphi * dz_dtheta - dy_dtheta * dz_dphi) -
-        dy_dr * (dx_dphi * dz_dtheta - dx_dtheta * dz_dphi) +
-        dz_dr * (dx_dphi * dy_dtheta - dx_dtheta * dy_dphi) )
-    
+        dx_dr * (dy_dphi * dz_dtheta - dy_dtheta * dz_dphi)
+        - dy_dr * (dx_dphi * dz_dtheta - dx_dtheta * dz_dphi)
+        + dz_dr * (dx_dphi * dy_dtheta - dx_dtheta * dy_dphi)
+    )
+
     areas = determinant * d_phi * d_theta
-    
+
     return x, y, z, nx, ny, nz, areas
 
+
 def get_intensity_satellite_frame(
-    sat_surfaces, 
-    sat_height, 
+    sat_surfaces,
+    sat_height,
     angle_past_terminator,
     observer_position,
-    include_sun = True, 
-    include_earthshine = True,
-    earth_panel_density = 150, 
-    earth_brdf = None):
-    '''
+    include_sun=True,
+    include_earthshine=True,
+    earth_panel_density=150,
+    earth_brdf=None,
+    wavelength_nm=None,
+):
+    """
     Calculates flux scattered by a satellite and seen by an observer.
 
     :param sat_surfaces: List of surfaces on satellite
@@ -105,84 +117,130 @@ def get_intensity_satellite_frame(
     :type earth_brdf: function
     :return: Flux of light incident on the observer (W / m^2)
     :rtype: float
-    '''
-    
-    horizon_angle = np.arccos(lumos.constants.EARTH_RADIUS / (lumos.constants.EARTH_RADIUS + sat_height))
+    """
+
+    # Detect vector wavelength
+    lam = None
+    vectorised = False
+    if wavelength_nm is not None:
+        lam = np.asarray(wavelength_nm, float)
+        vectorised = lam.ndim > 0
+
+    horizon_angle = np.arccos(
+        lumos.constants.EARTH_RADIUS / (lumos.constants.EARTH_RADIUS + sat_height)
+    )
     if angle_past_terminator > horizon_angle:
         # Inside earth's shadow
+        print(
+            f"[shadow] angle_past_terminator={angle_past_terminator:.3f} rad "
+            f"horizon_angle={horizon_angle:.3f} rad "
+            f"sat_height={sat_height/1000:.1f} km "
+            f"sun? {include_sun} earthshine? {include_earthshine}"
+        )
         return 0
-    
-    observer_x, observer_y, observer_z = observer_position[0], observer_position[1], observer_position[2]
 
-    if np.arccos(observer_z / lumos.constants.EARTH_RADIUS) > horizon_angle + np.deg2rad(1):
+    observer_x, observer_y, observer_z = (
+        observer_position[0],
+        observer_position[1],
+        observer_position[2],
+    )
+
+    if np.arccos(
+        observer_z / lumos.constants.EARTH_RADIUS
+    ) > horizon_angle + np.deg2rad(1):
         # Not visible to observer
         # Fudging this by 1 degree makes plots much nicer on edges
+        print("Not visible to observer")
         return 0
 
-    vector_2_sun = (0, np.cos(angle_past_terminator), - np.sin(angle_past_terminator))
+    vector_2_sun = (0, np.cos(angle_past_terminator), -np.sin(angle_past_terminator))
 
     sat_z = sat_height + lumos.constants.EARTH_RADIUS
 
     # Distances from observers to satellite
-    dist_sat_2_obs = np.sqrt( observer_x**2 + observer_y**2 
-                            + (observer_z - sat_z)**2 )
-    
+    dist_sat_2_obs = np.sqrt(observer_x**2 + observer_y**2 + (observer_z - sat_z) ** 2)
+
     # Unit vectors from observers to satellite
     sat_obs_x = observer_x / dist_sat_2_obs
     sat_obs_y = observer_y / dist_sat_2_obs
     sat_obs_z = (observer_z - sat_z) / dist_sat_2_obs
 
     if include_earthshine:
-        panel_x, panel_y, panel_z, panel_nx, panel_ny, panel_nz, panel_areas = \
+        panel_x, panel_y, panel_z, panel_nx, panel_ny, panel_nz, panel_areas = (
             get_earthshine_panels(sat_z, angle_past_terminator, earth_panel_density)
-        
-        # Distances from earthshine panels to satellite
-        dist_panels_2_sat = np.sqrt(panel_x**2 + panel_y**2 + (sat_z - panel_z)**2 )
+        )
 
-        panel_sat_x = - panel_x / dist_panels_2_sat
-        panel_sat_y = - panel_y / dist_panels_2_sat
+        # Distances from earthshine panels to satellite
+        dist_panels_2_sat = np.sqrt(panel_x**2 + panel_y**2 + (sat_z - panel_z) ** 2)
+
+        panel_sat_x = -panel_x / dist_panels_2_sat
+        panel_sat_y = -panel_y / dist_panels_2_sat
         panel_sat_z = (sat_z - panel_z) / dist_panels_2_sat
 
         # Panel Normalization
-        panel_normalizations = (panel_ny * vector_2_sun[1] + panel_nz * vector_2_sun[2])
+        panel_normalizations = panel_ny * vector_2_sun[1] + panel_nz * vector_2_sun[2]
 
-        panel_brdfs = earth_brdf(vector_2_sun,
-                                (panel_nx, panel_ny, panel_nz),
-                                (panel_sat_x, panel_sat_y, panel_sat_z))
+        panel_brdfs = earth_brdf(
+            vector_2_sun,
+            (panel_nx, panel_ny, panel_nz),
+            (panel_sat_x, panel_sat_y, panel_sat_z),
+        )
 
-    intensity = 0
+    intensity = np.zeros_like(lam) if vectorised else 0.0
 
     for surface in sat_surfaces:
-        
+
         if callable(surface.normal):
             surface_normal = surface.normal(angle_past_terminator)
         else:
             surface_normal = surface.normal
-        
+
         sun_contribution = 0
         earth_contribution = 0
-        
-        surface_normalization = surface_normal[1] * vector_2_sun[1] + surface_normal[2] * vector_2_sun[2]
+
+        surface_normalization = (
+            surface_normal[1] * vector_2_sun[1] + surface_normal[2] * vector_2_sun[2]
+        )
         surface_normalization = np.clip(surface_normalization, 0, None)
 
-        observer_normalization = surface_normal[0] * sat_obs_x + surface_normal[1] * sat_obs_y + surface_normal[2] * sat_obs_z
+        observer_normalization = (
+            surface_normal[0] * sat_obs_x
+            + surface_normal[1] * sat_obs_y
+            + surface_normal[2] * sat_obs_z
+        )
         observer_normalization = np.clip(observer_normalization, 0, None)
 
         if include_sun:
-            surface_brdf = surface.brdf(vector_2_sun,
-                                        surface_normal,
-                                        (sat_obs_x, sat_obs_y, sat_obs_z))
-
-            sun_contribution = sun_contribution + surface_brdf * surface_normalization * observer_normalization
-
+            if vectorised:
+                surface_brdf = surface.brdf(
+                    vector_2_sun,
+                    surface_normal,
+                    (sat_obs_x, sat_obs_y, sat_obs_z),
+                    lam=lam,
+                )
+                sun_contribution = (
+                    surface_brdf * surface_normalization * observer_normalization
+                )
+            else:
+                surface_brdf = surface.brdf(
+                    vector_2_sun,
+                    surface_normal,
+                    (sat_obs_x, sat_obs_y, sat_obs_z),
+                    lam=wavelength_nm,
+                )
+                sun_contribution = (
+                    sun_contribution
+                    + surface_brdf * surface_normalization * observer_normalization
+                )
+        # REMINDER: Need to include wavelength array handling here too
         if include_earthshine:
 
             surface_normalizations = np.clip(
-                - surface_normal[0] * panel_sat_x \
-                - surface_normal[1] * panel_sat_y \
+                -surface_normal[0] * panel_sat_x
+                - surface_normal[1] * panel_sat_y
                 - surface_normal[2] * panel_sat_z,
                 0,
-                None
+                None,
             )
 
             panel_observing_normalization = np.clip(
@@ -190,29 +248,37 @@ def get_intensity_satellite_frame(
                 + panel_ny * panel_sat_y
                 + panel_nz * panel_sat_z,
                 0,
-                None
+                None,
             )
 
-            surface_brdf = surface.brdf( (-panel_sat_x, -panel_sat_y, -panel_sat_z),
-                                          surface_normal,
-                                         (sat_obs_x, sat_obs_y, sat_obs_z) )
-            
-            earth_contribution = earth_contribution \
-                  + np.sum(panel_brdfs * surface_brdf 
-                         * panel_normalizations * observer_normalization 
-                         * surface_normalizations * panel_observing_normalization
-                         * panel_areas / dist_panels_2_sat**2 )
-        
-        intensity = intensity + lumos.constants.SUN_INTENSITY * surface.area * (sun_contribution + earth_contribution) / dist_sat_2_obs ** 2
+            surface_brdf = surface.brdf(
+                (-panel_sat_x, -panel_sat_y, -panel_sat_z),
+                surface_normal,
+                (sat_obs_x, sat_obs_y, sat_obs_z),
+            )
 
+            earth_contribution = earth_contribution + np.sum(
+                panel_brdfs
+                * surface_brdf
+                * panel_normalizations
+                * observer_normalization
+                * surface_normalizations
+                * panel_observing_normalization
+                * panel_areas
+                / dist_panels_2_sat**2
+            )
+
+        intensity = (
+            intensity
+            + lumos.constants.SUN_INTENSITY
+            * surface.area
+            * (sun_contribution + earth_contribution)
+            / dist_sat_2_obs**2
+        )
     return intensity
 
-def get_brightness_coords(
-    sat_alt, 
-    sat_az, 
-    sat_height, 
-    sun_alt, 
-    sun_az):
+
+def get_brightness_coords(sat_alt, sat_az, sat_height, sun_alt, sun_az):
     """
     Converts from HCS observer coordinates to brightness coordinates.
 
@@ -234,7 +300,11 @@ def get_brightness_coords(
     sat_x, sat_y, sat_z = lumos.conversions.altaz_to_unit(sat_alt, sat_az)
     sun_x, sun_y, sun_z = lumos.conversions.altaz_to_unit(sun_alt, sun_az)
 
-    phi = np.arccos(sat_z) - np.arcsin(lumos.constants.EARTH_RADIUS / (lumos.constants.EARTH_RADIUS + sat_height) * np.sqrt(sat_x**2 + sat_y**2) )
+    phi = np.arccos(sat_z) - np.arcsin(
+        lumos.constants.EARTH_RADIUS
+        / (lumos.constants.EARTH_RADIUS + sat_height)
+        * np.sqrt(sat_x**2 + sat_y**2)
+    )
     theta = np.arctan2(sat_y, sat_x)
 
     Zx = np.sin(phi) * np.cos(theta)
@@ -243,7 +313,7 @@ def get_brightness_coords(
 
     dot = Zx * sun_x + Zy * sun_y + Zz * sun_z
     beta = 1 / np.sqrt(1 - dot**2)
-    alpha = - beta * dot
+    alpha = -beta * dot
 
     Yx = alpha * Zx + beta * sun_x
     Yy = alpha * Zy + beta * sun_y
@@ -256,36 +326,46 @@ def get_brightness_coords(
     Xy = Zx * Yz - Yx * Zz
     Xz = Yx * Zy - Zx * Yy
 
-    T11, T12, T13, \
-    T21, T22, T23, \
-    T31, T32, T33  = lumos.functions.inv_3(Xx, Yx, Zx, 
-                                           Xy, Yy, Zy, 
-                                           Xz, Yz, Zz)
-    
-    dist_to_sat = np.sqrt(lumos.constants.EARTH_RADIUS**2 
-    + (lumos.constants.EARTH_RADIUS + sat_height)**2 
-    - 2 * lumos.constants.EARTH_RADIUS * (lumos.constants.EARTH_RADIUS + sat_height) * np.cos(phi))
+    T11, T12, T13, T21, T22, T23, T31, T32, T33 = lumos.functions.inv_3(
+        Xx, Yx, Zx, Xy, Yy, Zy, Xz, Yz, Zz
+    )
 
-    obs_x = - dist_to_sat * (T11 * sat_x + T12 * sat_y + T13 * sat_z)
-    obs_y = - dist_to_sat * (T21 * sat_x + T22 * sat_y + T23 * sat_z)
-    obs_z = (lumos.constants.EARTH_RADIUS + sat_height) - dist_to_sat * (T31 * sat_x + T32 * sat_y + T33 * sat_z)
+    dist_to_sat = np.sqrt(
+        lumos.constants.EARTH_RADIUS**2
+        + (lumos.constants.EARTH_RADIUS + sat_height) ** 2
+        - 2
+        * lumos.constants.EARTH_RADIUS
+        * (lumos.constants.EARTH_RADIUS + sat_height)
+        * np.cos(phi)
+    )
+
+    obs_x = -dist_to_sat * (T11 * sat_x + T12 * sat_y + T13 * sat_z)
+    obs_y = -dist_to_sat * (T21 * sat_x + T22 * sat_y + T23 * sat_z)
+    obs_z = (lumos.constants.EARTH_RADIUS + sat_height) - dist_to_sat * (
+        T31 * sat_x + T32 * sat_y + T33 * sat_z
+    )
 
     angle_past_terminator = -np.arcsin(T31 * sun_x + T32 * sun_y + T33 * sun_z)
 
     return obs_x, obs_y, obs_z, angle_past_terminator
 
+
 def get_intensity_observer_frame(
-    sat_surfaces, 
-    sat_heights, 
-    sat_altitudes, 
+    sat_surfaces,
+    sat_heights,
+    sat_altitudes,
     sat_azimuths,
     sun_altitude,
     sun_azimuth,
-    include_sun = True,
-    include_earthshine = True,
-    earth_panel_density = 150,
-    earth_brdf = None):
-
+    include_sun=True,
+    include_earthshine=True,
+    earth_panel_density=150,
+    earth_brdf=None,
+    # new band params
+    solar_irradiance_wm2: float | None = None,
+    solar_ref_wm2: float = None,
+    wavelength_nm=None,
+):
     """
     Calculates the flux of a satellite seen by an observer.
 
@@ -312,32 +392,147 @@ def get_intensity_observer_frame(
     :return: Flux of light incident on the observer (W / m^2)
     :rtype: float or :class:`np.ndarray`
     """
-    
-    if sun_altitude > 0:
-        raise ValueError(f"Observatory is in daylight! Sun Altitude = {sun_altitude}")
-    
+
+    """
+    -NEW-
+    -"solar_irradiance_wm2" (float)
+    Band integrated solar irradiance
+    -"solar_ref_wm2" (float, optional)
+    reference irradiance, defaults to lumos.constants.SUN_INTENSITY
+    -wavelength_nm (float, optional)
+    Wavelength at which to evaluate BRDFs
+
+    returns intensity: float or np.ndarray
+    Flux incident on observer [W/m^2] scaled for the bandpass
+    """
     sat_alts, sat_azs = np.asarray(sat_altitudes), np.asarray(sat_azimuths)
     output_shape = sat_alts.shape
 
     if not isinstance(sat_heights, np.ndarray):
         sat_heights = sat_heights * np.ones(output_shape)
 
-    sat_heights, sat_alts, sat_azs = sat_heights.flatten(), sat_alts.flatten(), sat_azs.flatten()
-    intensity = np.zeros_like(sat_alts)
+    sat_heights, sat_alts, sat_azs = (
+        sat_heights.flatten(),
+        sat_alts.flatten(),
+        sat_azs.flatten(),
+    )
 
-    obs_x, obs_y, obs_z, angle_past_terminator = get_brightness_coords(sat_alts, sat_azs, sat_heights, 
-        sun_altitude, sun_azimuth)
+    obs_x, obs_y, obs_z, angle_past_terminator = get_brightness_coords(
+        sat_alts, sat_azs, sat_heights, sun_altitude, sun_azimuth
+    )
 
-    for (i, (x, y, z, alpha, h)) in enumerate(zip(obs_x, obs_y, obs_z, angle_past_terminator, sat_heights)):
+    vectorized = wavelength_nm is not None and np.asarray(wavelength_nm).ndim > 0
+    if vectorized:
+        intensity = np.zeros((sat_alts.size, np.asarray(wavelength_nm).size), float)
+    else:
+        intensity = np.zeros_like(sat_alts)
+
+    for i, (x, y, z, alpha, h) in enumerate(
+        zip(obs_x, obs_y, obs_z, angle_past_terminator, sat_heights)
+    ):
         intensity[i] = get_intensity_satellite_frame(
-            sat_surfaces, h, alpha, (x, y, z),
-            include_sun, include_earthshine, earth_panel_density, earth_brdf)
+            sat_surfaces,
+            h,
+            alpha,
+            (x, y, z),
+            include_sun,
+            include_earthshine,
+            earth_panel_density,
+            earth_brdf,
+            wavelength_nm=wavelength_nm,
+        )
+    if vectorized:
+        intensity = intensity.reshape(output_shape + (np.asarray(wavelength_nm).size,))
+    else:
+        intensity = intensity.reshape(output_shape)
 
-    intensity = intensity.reshape(output_shape)
+    if solar_irradiance_wm2 is not None:
+        if solar_ref_wm2 is None:
+            solar_ref_wm2 = float(lumos.constants.SUN_INTENSITY)
+        scale = float(solar_irradiance_wm2) / float(solar_ref_wm2)
+        intensity = intensity * scale
     return intensity
 
+
+def band_intensity_at_time(
+    sat_surfaces,
+    sat_heights,
+    sat_alt,
+    sat_az,
+    sun_alt,
+    sun_az,
+    band_lam,
+    T_band,
+    E_on_band,
+    panel_tracking=False,
+    hinge_axis=np.array([0.0, 1.0, 0.0]),
+    max_angle_deg=360.0,
+):
+    """Compute band-integrated observer irradiance for a satellite at a given time.
+
+    This integrates the observer-frame intensity across a wavelength band using the supplied filter transmission and solar spectral irradiance.
+
+    :param sat_surfaces: List of satellite surfaces.
+    :type sat_surfaces: list[luumos.geometry.Surface]
+    :param sat_heights: Heights of satellite above geodetic nadir (meters)
+    :type sat_heights: float or np.ndarray
+    :param sat_alt: Satellite altitude (degrees)
+    :type sat_alt: float or np.ndarray
+    :param sat_az: Satellite azimuth (degrees)
+    :type sat_az: float or np.ndarray
+    :param sun_alt: Sun altitude (degrees)
+    :type sun_alt: float or np.ndarray
+    :param sun_az: Sun azimuth (degrees)
+    :type sun_az: float or np.ndarray
+    :param band_lam: Band wavelengths (nm)
+    :type band_lam: float or np.ndarray
+    :param T_band: Band transmission function
+    :type T_band: float or np.ndarray
+    :param E_on_band: Solar spectral irradiance on band_lam (W/m^2/nm)
+    :type E_on_band: np.ndarray
+    :param panel_tracking: Enable single-axis panel tracking, defaults to False
+    :type panel_tracking: bool, optional
+    :param hinge_axis: Hinge axis for panel tracking (unit vector), defaults to np.array([0.0, 1.0, 0.0])
+    :type hinge_axis: np.ndarray, optional
+    :param max_angle_deg: Maximum angle for panel tracking (degrees), defaults to 360.0
+    :type max_angle_deg: float, optional
+    :return: Band-integrated observer irradiance
+    :rtype: float or np.ndarray
+    """
+
+    if panel_tracking:
+        sun_az_rad = np.deg2rad(sun_az)
+        sun_alt_rad = np.deg2rad(sun_alt)
+        sun_vec = np.array(
+            [
+                np.cos(sun_alt_rad) * np.sin(sun_az_rad),
+                np.cos(sun_alt_rad) * np.cos(sun_az_rad),
+                np.sin(sun_alt_rad),
+            ]
+        )
+
+        lumos.attitude.apply_single_axis_tracking(
+            sat_surfaces, sun_vec, hinge_axis, max_angle_deg=max_angle_deg
+        )
+
+    I_lam = lumos.calculator.get_intensity_observer_frame(
+        sat_surfaces,
+        sat_heights,
+        sat_altitudes=sat_alt,
+        sat_azimuths=sat_az,
+        sun_altitude=sun_alt,
+        sun_azimuth=sun_az,
+        include_sun=True,
+        include_earthshine=False,
+        wavelength_nm=band_lam,
+    )
+    # band integrated energy at observer
+    integrand = I_lam * E_on_band * T_band
+    I_band = np.trapz(integrand, band_lam)  # W/m^2
+    return I_band
+
+
 def get_sun_alt_az(time, observer_location):
-    
     """
     Convenience function for finding the altitude and azimuth of the sun
 
@@ -347,7 +542,6 @@ def get_sun_alt_az(time, observer_location):
     :type observer_location: :class:`astropy.coordinates.EarthLocation`
     """
 
-    aa_frame = astropy.coordinates.AltAz(obstime = time, location = observer_location)
+    aa_frame = astropy.coordinates.AltAz(obstime=time, location=observer_location)
     sun_altaz = astropy.coordinates.get_sun(time).transform_to(aa_frame)
     return sun_altaz.alt.degree, sun_altaz.az.degree
-
