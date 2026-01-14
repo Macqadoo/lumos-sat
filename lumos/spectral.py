@@ -3,11 +3,12 @@ import numpy as np
 
 
 def load_filter_dat(path):
-    """Load a filter profile exported from SVO.
+    """
+    Load a filter profile exported from SVO.
 
     :param path: Path to the ``.dat`` file downloaded from SVO.
     :type path: str
-    :returns: ``lam`` (wavelength grid in nm) and ``trans`` (normalized transmission 0–1).
+    :returns: ``lam`` (wavelength grid in nm) and ``trans`` (normalized transmission 0-1).
     :rtype: tuple[np.ndarray, np.ndarray]
 
     note: Files may specify Angstrom or nm; the loader infers the unit.
@@ -32,7 +33,6 @@ def bandpass_irradiance(
     lam_nm_filter, T_filter, lam_nm_sun, E_sun_Wm2_per_nm, return_norm=False
 ):
     """
-    Docstring for bandpass_irradiance
     Compute in band solar irradiance for a surface with spectral reflectance rho(lambda)
 
     :param lam_nm_filter: array, wavelength grid of filter transmission curve nm
@@ -179,7 +179,7 @@ def interp_R(lam_table_nm, R_table):
     R_table = np.asarray(R_table, float)
 
     def R_of_lambda(lambda_nm):
-        return float(np.interp(lambda_nm, lam_table_nm, R_table))
+        return np.interp(lambda_nm, lam_table_nm, R_table)
 
     return R_of_lambda
 
@@ -249,18 +249,38 @@ def diffuse_spectral_energy_function(
         lam = kwargs.pop("lam", None)
         if lam is None and len(args) > 0:
             lam = args[0]
-        lam_eff = lam_tab[0] if lam is None else float(lam)
 
-        scale = float(C_of(lam_eff))
+        if lam is None:
+            lam_arr = np.asarray([lam_tab[0]], float)
+        else:
+            lam_arr = np.asarray(lam, float)
 
+        scale = C_of(lam_arr)
+        lam_list = np.atleast_1d(lam_arr)
+
+        # try vectorised base_brdf first
         try:
-            vals = base_brdf(i_vec, n_vec, o_vec, lam=lam_eff, **kwargs)
+            vals = base_brdf(i_vec, n_vec, o_vec, lam=lam_arr, **kwargs)
         except TypeError:
-            try:
-                vals = base_brdf(i_vec, n_vec, o_vec, lam_eff, **kwargs)
-            except TypeError:
-                vals = base_brdf(i_vec, n_vec, o_vec, **kwargs)
+            vals_list = []
+            for L in lam_list:
+                try:
+                    vals_list.append(
+                        base_brdf(i_vec, n_vec, o_vec, lam=float(L), **kwargs)
+                    )
+                except TypeError:
+                    try:
+                        vals_list.append(
+                            base_brdf(i_vec, n_vec, o_vec, lam=L, **kwargs)
+                        )
+                    except TypeError:
+                        # base_brdf doesn't accept wavelength at all
+                        vals_no_lam = base_brdf(i_vec, n_vec, o_vec, **kwargs)
+                        vals_list = [vals_no_lam] * lam_list.size
+                        break
+            vals = np.asarray(vals_list, float)
 
-        return scale * vals
+        out = scale * vals
+        return float(out) if np.ndim(out) == 0 else out
 
     return BRDF_lambda
