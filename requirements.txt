@@ -1,5 +1,6 @@
 astropy==5.2.2
 matplotlib==3.7.1
+SciencePlots==2.2.0
 numpy==1.24.3
 opencv-python==4.7.0.72
 requests==2.30.0
