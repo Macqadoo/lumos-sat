@@ -35,7 +35,6 @@ def apply_single_axis_tracking(
     """
     max_rad = np.deg2rad(abs(max_angle_deg))
     for s in surfaces:
-        # only rotate true solar panels
         if not getattr(s, "is_solar_panel", False):
             continue
         nominal = getattr(s, "nominal_normal", None)
