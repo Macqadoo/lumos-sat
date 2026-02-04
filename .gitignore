@@ -154,3 +154,7 @@ automodule/
 satellite-models/optus10.py
 satellite-models/optusC1.py
 satellite-models/optusD3.py
+data/filter-profiles/.DS_Store
+data/earthshine-data/.DS_Store
+data/material-spectral-data/.DS_Store
+.DS_Store
