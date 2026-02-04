@@ -45,7 +45,7 @@ def ABG(A, B, g):
     :rtype: function
     """
 
-    def BRDF(incident_vector, normal_vector, outgoing_vector):
+    def BRDF(incident_vector, normal_vector, outgoing_vector, lam=None, **kwargs):
         ix, iy, iz = incident_vector
         nx, ny, nz = normal_vector
         ox, oy, oz = outgoing_vector
@@ -93,7 +93,7 @@ def GAUSSIAN(A, sigma):
     :rtype: function
     """
 
-    def BRDF(incident_vector, normal_vector, outgoing_vector):
+    def BRDF(incident_vector, normal_vector, outgoing_vector, lam=None, **kwargs):
         ix, iy, iz = incident_vector
         nx, ny, nz = normal_vector
         ox, oy, oz = outgoing_vector
@@ -130,7 +130,7 @@ def PHONG(Kd, Ks, n):
     :rtype: function
     """
 
-    def BRDF(incident_vector, normal_vector, outgoing_vector):
+    def BRDF(incident_vector, normal_vector, outgoing_vector, lam=None, **kwargs):
         ix, iy, iz = incident_vector
         nx, ny, nz = normal_vector
         ox, oy, oz = outgoing_vector
@@ -171,7 +171,7 @@ def BINOMIAL(B, C, d, l1):
     :rtype: function
     """
 
-    def BRDF(incident_vector, normal_vector, outgoing_vector):
+    def BRDF(incident_vector, normal_vector, outgoing_vector, lam=None, **kwargs):
         ix, iy, iz = incident_vector
         nx, ny, nz = normal_vector
         ox, oy, oz = outgoing_vector
