@@ -127,3 +127,30 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+data/.DS_Store
+
+#.ipynb files
+analysis/band-accurate-integration.ipynb
+analysis/band-integration-CMD.ipynb
+analysis/bedard-reflectance.ipynb
+analysis/calculator-test.ipynb
+analysis/earthshine-comparisons.ipynb
+analysis/initialplots.ipynb
+analysis/optusC1-test.ipynb
+analysis/panel-tracking.ipynb
+analysis/initialplots.ipynb
+analysis/plot_setup.py
+analysis/plot1.ipynb
+analysis/plot2.ipynb
+analysis/plot3.ipynb
+analysis/plot4.ipynb
+analysis/surface-test.ipynb
+
+# automodules
+automodule/
+*automodule*
+
+# Optus satellite models
+satellite-models/optus10.py
+satellite-models/optusC1.py
+satellite-models/optusD3.py
