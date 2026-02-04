@@ -270,10 +270,7 @@ def get_intensity_satellite_frame(
 
         intensity = (
             intensity
-            + lumos.constants.SUN_INTENSITY
-            * surface.area
-            * (sun_contribution + earth_contribution)
-            / dist_sat_2_obs**2
+            + surface.area * (sun_contribution + earth_contribution) / dist_sat_2_obs**2
         )
     return intensity
 
@@ -501,18 +498,12 @@ def band_intensity_at_time(
     """
 
     if panel_tracking:
-        sun_az_rad = np.deg2rad(sun_az)
-        sun_alt_rad = np.deg2rad(sun_alt)
-        sun_vec = np.array(
-            [
-                np.cos(sun_alt_rad) * np.sin(sun_az_rad),
-                np.cos(sun_alt_rad) * np.cos(sun_az_rad),
-                np.sin(sun_alt_rad),
-            ]
+        obs_x, obs_y, obs_z, angle = get_brightness_coords(
+            sat_alt, sat_az, sat_heights, sun_alt, sun_az
         )
-
+        sun_vec1 = np.array([0.0, np.cos(angle), -np.sin(angle)])
         lumos.attitude.apply_single_axis_tracking(
-            sat_surfaces, sun_vec, hinge_axis, max_angle_deg=max_angle_deg
+            sat_surfaces, sun_vec1, hinge_axis=(0.0, 1.0, 0.0), max_angle_deg=360.0
         )
 
     I_lam = lumos.calculator.get_intensity_observer_frame(
