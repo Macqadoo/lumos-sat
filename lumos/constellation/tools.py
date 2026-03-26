@@ -4,7 +4,8 @@ Tools for getting TLEs from Celestrak and SpaceTrack
 
 import requests
 
-def query_celestrak(filename, query, value, format, supplemental = False):
+
+def query_celestrak(filename, query, value, format, supplemental=False):
     """
     Tool to interface with Celestrak API.
     See `celestrak.org <https://celestrak.org/NORAD/documentation/gp-data-formats.php>`_ for more details.
@@ -22,10 +23,12 @@ def query_celestrak(filename, query, value, format, supplemental = False):
 
     """
 
-    url = (f"https://celestrak.org/NORAD/elements/"
-           f"{'supplemental/sup-' if supplemental else ''}"
-           f"gp.php?{query}={value}&FORMAT={format}")
-    
+    url = (
+        f"https://celestrak.org/NORAD/elements/"
+        f"{'supplemental/sup-' if supplemental else ''}"
+        f"gp.php?{query}={value}&FORMAT={format}"
+    )
+
     response = requests.get(url)
 
     with open(filename, "wb") as file:

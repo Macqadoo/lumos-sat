@@ -6,6 +6,7 @@ import numpy as np
 import scipy.optimize
 import lumos.conversions
 
+
 def read_brdf(brdf_file_path):
     """
     Reads data from a BRDF file
@@ -16,7 +17,7 @@ def read_brdf(brdf_file_path):
     :rtype: tuple[:class:`np.ndarray`]
     """
 
-    data = np.loadtxt(brdf_file_path, skiprows = 1)
+    data = np.loadtxt(brdf_file_path, skiprows=1)
 
     phi_in = data[:, 0]
     theta_in = data[:, 1]
@@ -26,15 +27,8 @@ def read_brdf(brdf_file_path):
 
     return phi_in, theta_in, phi_out, theta_out, brdf
 
-def fit(
-        data_file,
-        model_func,
-        bounds = None,
-        p0 = None,
-        log_space = True,
-        clip = 0
-        ):
-    
+
+def fit(data_file, model_func, bounds=None, p0=None, log_space=True, clip=0):
     """
     Fits a model to experimental data.
 
@@ -75,20 +69,21 @@ def fit(
         idx = idx.astype(int)
 
         f = model_brdf(
-            (ix[idx], iy[idx], iz[idx]),
-            (0, 0, 1),
-            (ox[idx], oy[idx], oz[idx])
-            )
-        
+            (ix[idx], iy[idx], iz[idx]), (0, 0, 1), (ox[idx], oy[idx], oz[idx])
+        )
+
         return np.log10(f) if log_space else f
 
-    popt, _ = scipy.optimize.curve_fit(fit_function, 
-                                       indexes, 
-                                       np.log10(brdf) if log_space else brdf, 
-                                       bounds = bounds,
-                                       p0 = p0)
+    popt, _ = scipy.optimize.curve_fit(
+        fit_function,
+        indexes,
+        np.log10(brdf) if log_space else brdf,
+        bounds=bounds,
+        p0=p0,
+    )
 
     return popt
+
 
 def pack_binomial_parameters(n, m, l1, l2, *params):
     """
@@ -108,6 +103,6 @@ def pack_binomial_parameters(n, m, l1, l2, *params):
     :rtype: :class:`np.ndarray`, :class:`np.ndarray`, float
     """
     params = np.array(params)
-    B = np.reshape( params[:n * m], (n, m) )
-    C = np.reshape( params[n * m:], (n, l2 - l1))
+    B = np.reshape(params[: n * m], (n, m))
+    C = np.reshape(params[n * m :], (n, l2 - l1))
     return B, C
