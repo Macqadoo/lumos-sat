@@ -1,4 +1,4 @@
-""" Library of Satellite Constellations """
+"""Library of Satellite Constellations"""
 
 import numpy as np
 import sgp4.api
@@ -7,11 +7,12 @@ import astropy.units
 import astropy.coordinates
 import matplotlib.pyplot as plt
 
+
 class Constellation:
     """
     Base class for all constellations
     """
-    
+
     def get_teme_position(self, time):
         """
         Gets positions of all satellites in TEME coordinate frame
@@ -26,15 +27,15 @@ class Constellation:
         jd2 = np.array([time.jd2])
 
         _, teme_pos, _ = self.constellation.sgp4(jd1, jd2)
-        teme_pos = teme_pos[:,0,:]
-        x, y, z = teme_pos[:,0], teme_pos[:,1], teme_pos[:,2]
+        teme_pos = teme_pos[:, 0, :]
+        x, y, z = teme_pos[:, 0], teme_pos[:, 1], teme_pos[:, 2]
 
         return x * 1000, y * 1000, z * 1000
-    
+
     def get_hcs_position(self, time, earth_location):
         """
         Gets position of all satellites in constellation in HCS frame
-        
+
         :param time: Time at which to get positions
         :type time: :class:`astropy.time.Time`
         :param earth_location: Location at which to get positions in HCS frame
@@ -45,26 +46,29 @@ class Constellation:
 
         x, y, z = self.get_teme_position(time)
         teme = astropy.coordinates.TEME(
-            x = x * astropy.units.meter,
-            y = y * astropy.units.meter,
-            z = z * astropy.units.meter,
-            representation_type = 'cartesian',
-            obstime = time)
-        
-        itrs_geo = teme.transform_to(astropy.coordinates.ITRS(obstime = time))
-        topo_itrs_repr = itrs_geo.cartesian.without_differentials() \
-                        - earth_location.get_itrs(time).cartesian
-        itrs_topo = astropy.coordinates.ITRS(topo_itrs_repr, obstime = time, location = earth_location)
+            x=x * astropy.units.meter,
+            y=y * astropy.units.meter,
+            z=z * astropy.units.meter,
+            representation_type="cartesian",
+            obstime=time,
+        )
+
+        itrs_geo = teme.transform_to(astropy.coordinates.ITRS(obstime=time))
+        topo_itrs_repr = (
+            itrs_geo.cartesian.without_differentials()
+            - earth_location.get_itrs(time).cartesian
+        )
+        itrs_topo = astropy.coordinates.ITRS(
+            topo_itrs_repr, obstime=time, location=earth_location
+        )
         aa = itrs_topo.transform_to(
-            astropy.coordinates.AltAz(obstime = time, 
-                                      location = earth_location,
-                                      pressure = 0)
-                                      )
-        
+            astropy.coordinates.AltAz(obstime=time, location=earth_location, pressure=0)
+        )
+
         heights = itrs_geo.earth_location.geodetic.height.value
 
         return aa.alt.degree, aa.az.degree, heights
-    
+
     def plot_teme(self, ax, time):
         """
         Plots satellite constellation in TEME coordinate frame
@@ -78,7 +82,7 @@ class Constellation:
         x, y, z = self.get_teme_position(time)
         x, y, z = x / 1000, y / 1000, z / 1000
 
-        ax.scatter(x, y, z, s = 1, alpha = 0.5)
+        ax.scatter(x, y, z, s=1, alpha=0.5)
         ax.set_box_aspect((np.ptp(x), np.ptp(y), np.ptp(z)))
         ax.xaxis.set_pane_color((1, 1, 1, 0))
         ax.yaxis.set_pane_color((1, 1, 1, 0))
@@ -86,7 +90,7 @@ class Constellation:
         ax.set_xlabel("x (km)")
         ax.set_ylabel("y (km)")
         ax.set_zlabel("z (km)")
-    
+
     def plot_hcs(self, ax, time, location):
         """
         Plots satellite constellation in HCS coordinate frame
@@ -100,13 +104,14 @@ class Constellation:
         """
 
         altitudes, azimuths, _ = self.get_hcs_position(time, location)
-        ax.plot( np.deg2rad(azimuths), 90 - altitudes, '.')
+        ax.plot(np.deg2rad(azimuths), 90 - altitudes, ".")
         ax.set_rmax(90)
         ax.set_yticklabels([])
-        ax.set_theta_zero_location('N')
+        ax.set_theta_zero_location("N")
         ax.set_rticks([10, 20, 30, 40, 50, 60, 70, 80, 90])
         ax.set_xticks(np.deg2rad([0, 90, 180, 270]))
-        ax.set_xticklabels(['N', 'E', 'S', 'W'])
+        ax.set_xticklabels(["N", "E", "S", "W"])
+
 
 class ConstellationFromTLE(Constellation):
     """
@@ -120,21 +125,21 @@ class ConstellationFromTLE(Constellation):
         """
         Constructor Method
         """
-        
-        with open(tle_file_path, 'r') as file:
+
+        with open(tle_file_path, "r") as file:
             lines = file.read().splitlines()
 
-        TLES = [ (l0, l1, l2) for l0, l1, l2 in zip(lines[::3], lines[1::3], lines[2::3]) ]
-    
+        TLES = [
+            (l0, l1, l2) for l0, l1, l2 in zip(lines[::3], lines[1::3], lines[2::3])
+        ]
+
         satellite_ids = []
         constellation = []
 
         for tle in TLES:
-            satellite_ids.append( tle[0].strip() )
-            constellation.append(
-                sgp4.api.Satrec.twoline2rv(tle[1], tle[2])
-                )
-        
+            satellite_ids.append(tle[0].strip())
+            constellation.append(sgp4.api.Satrec.twoline2rv(tle[1], tle[2]))
+
         self.constellation = sgp4.api.SatrecArray(constellation)
         self.satellite_ids = tuple(satellite_ids)
-        self.constellation_size = len( self.satellite_ids )
+        self.constellation_size = len(self.satellite_ids)
