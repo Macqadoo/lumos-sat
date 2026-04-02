@@ -138,6 +138,10 @@ solar-spectrum/
 historic-tles/
 tests/
 
+# Files to ignore
+visuals.py
+de421.bsp
+
 # automodules
 automodule/
 *automodule*
